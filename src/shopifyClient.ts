@@ -1,33 +1,74 @@
 const API_VERSION = "2025-01";
 
-export interface ShopifyCredentials {
-  shopDomain: string;
-  accessToken: string;
+function getShopDomain(): string {
+  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
+  if (!shopDomain) {
+    throw new Error("Missing SHOPIFY_SHOP_DOMAIN environment variable.");
+  }
+  return shopDomain.includes(".myshopify.com") ? shopDomain : `${shopDomain}.myshopify.com`;
 }
 
-function getCredentials(): ShopifyCredentials {
-  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
-  const accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
-  if (!shopDomain || !accessToken) {
+// In-memory cache for the Client Credentials access token, since tokens
+// obtained this way expire (Shopify currently issues them with a ~24h TTL).
+// Refreshed automatically shortly before expiry rather than relying on a
+// static token in an env var.
+let cachedToken: { value: string; expiresAt: number } | null = null;
+
+async function getAccessToken(): Promise<string> {
+  const now = Date.now();
+  if (cachedToken && cachedToken.expiresAt > now) {
+    return cachedToken.value;
+  }
+
+  const clientId = process.env.SHOPIFY_CLIENT_ID;
+  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
     throw new Error(
-      "Missing SHOPIFY_SHOP_DOMAIN / SHOPIFY_ADMIN_ACCESS_TOKEN environment variables."
+      "Missing SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET environment variables."
     );
   }
-  return { shopDomain, accessToken };
+
+  const domain = getShopDomain();
+  const response = await fetch(`https://${domain}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "client_credentials",
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(
+      `Shopify token exchange error ${response.status} ${response.statusText}: ${body.slice(0, 500)}`
+    );
+  }
+
+  const json = (await response.json()) as { access_token: string; expires_in: number };
+
+  // Refresh 5 minutes before actual expiry to avoid using a token that
+  // expires mid-request.
+  cachedToken = {
+    value: json.access_token,
+    expiresAt: now + (json.expires_in - 300) * 1000,
+  };
+
+  return cachedToken.value;
 }
 
 /**
  * Runs a GraphQL query/mutation against the Shopify Admin API.
- * `shopDomain` should be the bare myshopify.com subdomain, e.g. "my-store" or "my-store.myshopify.com".
+ * Automatically fetches and caches an access token via the Client
+ * Credentials grant, refreshing it before it expires.
  */
 export async function shopifyGraphQL<T = unknown>(
   query: string,
   variables: Record<string, unknown> = {}
 ): Promise<T> {
-  const { shopDomain, accessToken } = getCredentials();
-  const domain = shopDomain.includes(".myshopify.com")
-    ? shopDomain
-    : `${shopDomain}.myshopify.com`;
+  const domain = getShopDomain();
+  const accessToken = await getAccessToken();
 
   const url = `https://${domain}/admin/api/${API_VERSION}/graphql.json`;
 

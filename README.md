@@ -33,26 +33,38 @@ shopify-mcp-server/
 └── README.md
 ```
 
-## Creating the Shopify custom app & access token
+## Creating the Shopify app & API credentials
 
-1. In your Shopify admin, go to **Settings → Apps and sales channels → Develop apps**.
-2. Click **Create an app**, give it a name (e.g. "Claude MCP Integration").
-3. Under **Configuration → Admin API integration**, select these scopes (read-only):
+Shopify retired legacy custom apps (which issued a permanent Admin API
+access token directly) as of January 2026. New apps are created in the
+**Dev Dashboard** and authenticate via the **Client Credentials grant**
+instead — you get a Client ID + Client Secret, and the server exchanges
+those for a short-lived access token itself, refreshing automatically.
+
+1. In your Shopify admin, go to **Settings → Apps and sales channels → Apps → App development**.
+2. Click **Build apps in Dev Dashboard**.
+3. Click **Create app**, then use **"Start from Dev Dashboard"** (not the
+   Shopify CLI option) and give it a name.
+4. Under **API access → Scopes**, select these read-only scopes:
    - `read_products`
    - `read_inventory`
    - `read_orders`
    - `read_customers`
    - `read_locations`
-4. Click **Install app**, then go to **API credentials** and reveal the
-   **Admin API access token**. This is shown only once — copy it somewhere
-   safe (not into chat with anyone, including an AI assistant).
+5. Uncheck **"Embed app in Shopify admin"** if shown — this app has no UI,
+   it's API-only.
+6. Release the app version.
+7. Go to the app's **Settings → Credentials** page — you'll see a **Client ID**
+   and **Secret** (click the eye icon to reveal it). These are what the
+   server uses; copy them somewhere safe (not into chat with anyone,
+   including an AI assistant).
 
 ## Local setup
 
 ```bash
 npm install
 cp .env.example .env
-# edit .env and set SHOPIFY_SHOP_DOMAIN / SHOPIFY_ADMIN_ACCESS_TOKEN
+# edit .env and set SHOPIFY_SHOP_DOMAIN / SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET
 npm run dev
 ```
 
@@ -71,11 +83,12 @@ npm start
 | Variable                      | Required | Description                                                                 |
 |--------------------------------|----------|-------------------------------------------------------------------------------|
 | `SHOPIFY_SHOP_DOMAIN`          | Yes      | Your store's subdomain, e.g. `my-store` (or `my-store.myshopify.com`, either works) |
-| `SHOPIFY_ADMIN_ACCESS_TOKEN`   | Yes      | The Admin API access token from your custom app. **Never commit this.**      |
+| `SHOPIFY_CLIENT_ID`            | Yes      | The app's Client ID, from Dev Dashboard → your app → Settings → Credentials. |
+| `SHOPIFY_CLIENT_SECRET`        | Yes      | The app's Client Secret from the same page. **Never commit this.**           |
 | `PORT`                         | No       | Port to listen on. Railway sets this automatically. Defaults to 3000.        |
 
-This is a single shared access token for the whole server — every coworker
-who connects their own Claude account to this server's URL queries Shopify
+This is a single shared app for the whole server — every coworker who
+connects their own Claude account to this server's URL queries Shopify
 under the same app credentials. There is no per-user auth.
 
 ## Deploying to Railway
@@ -85,7 +98,8 @@ under the same app credentials. There is no per-user auth.
    `railway.json` and uses Nixpacks to run `npm run build` then `npm start`.
 3. In the Railway project's **Variables** tab, set:
    - `SHOPIFY_SHOP_DOMAIN`
-   - `SHOPIFY_ADMIN_ACCESS_TOKEN`
+   - `SHOPIFY_CLIENT_ID`
+   - `SHOPIFY_CLIENT_SECRET`
    
    Do not set `PORT` — Railway injects it automatically.
 4. Deploy. Railway gives you a public URL, e.g.
@@ -105,8 +119,12 @@ configured on the server.
 
 ## Notes on the Shopify API integration
 
-- **Auth**: Every GraphQL request is sent with an `X-Shopify-Access-Token`
-  header carrying the Admin API access token from your custom app.
+- **Auth**: The server exchanges `SHOPIFY_CLIENT_ID` + `SHOPIFY_CLIENT_SECRET`
+  for a short-lived Admin API access token via Shopify's Client Credentials
+  grant (`POST /admin/oauth/access_token`). Tokens obtained this way expire
+  (currently ~24h) — `shopifyClient.ts` caches the token in memory and
+  automatically re-fetches it a few minutes before expiry, so no manual
+  token rotation is needed.
 - **API version**: Pinned to `2025-01` in `shopifyClient.ts`. Shopify
   versions are date-based (`YYYY-MM`) and each is supported for about a
   year — bump `API_VERSION` periodically to stay current.
