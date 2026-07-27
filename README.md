@@ -14,6 +14,9 @@ Read-only tools covering:
 - **Orders** — `list_orders`, `get_order` (with line items), `list_unfulfilled_orders`
 - **Customers** — `list_customers`, `get_customer`
 - **Collections** — `list_collections`
+- **Discounts** — `list_discounts` (codes and automatic discounts)
+- **Gift cards** — `list_gift_cards` (balances, initial value, assigned customer)
+- **Analytics** — `run_analytics_query` (ShopifyQL queries for sales/order trends)
 
 All tools are read-only (GraphQL `query` operations against the Shopify
 Admin API). No mutations (create/update/delete) are included.
@@ -49,8 +52,16 @@ those for a short-lived access token itself, refreshing automatically.
    - `read_products`
    - `read_inventory`
    - `read_orders`
+   - `read_all_orders` — grants access to order history beyond the default
+     60-day window. This scope requires a separate approval step in
+     Shopify's scope picker even after checking it; if orders older than
+     60 days aren't showing up, that approval likely hasn't gone through
+     yet.
    - `read_customers`
    - `read_locations`
+   - `read_discounts` (optional, for the `list_discounts` tool)
+   - `read_gift_cards` (optional, for the `list_gift_cards` tool)
+   - `read_analytics` (optional, for the `run_analytics_query` tool)
 5. Uncheck **"Embed app in Shopify admin"** if shown — this app has no UI,
    it's API-only.
 6. Release the app version.

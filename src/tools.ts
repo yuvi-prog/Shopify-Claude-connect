@@ -346,4 +346,119 @@ export const tools: ToolDef[] = [
       return textResult(data);
     },
   },
+
+  // -------------------------------------------------------------------
+  // Discounts
+  // -------------------------------------------------------------------
+  {
+    name: "list_discounts",
+    description:
+      "List active and scheduled discounts (both discount codes and automatic discounts) configured in the store, including status and validity dates.",
+    inputShape: {
+      ...pageArgs,
+    },
+    handler: async ({ first, after }) => {
+      const data = await shopifyGraphQL(
+        `query($first: Int!, $after: String) {
+          discountNodes(first: $first, after: $after) {
+            edges {
+              cursor
+              node {
+                id
+                discount {
+                  __typename
+                  ... on DiscountCodeBasic {
+                    title status startsAt endsAt
+                    codes(first: 5) { edges { node { code } } }
+                  }
+                  ... on DiscountAutomaticBasic {
+                    title status startsAt endsAt
+                  }
+                  ... on DiscountCodeBxgy {
+                    title status startsAt endsAt
+                    codes(first: 5) { edges { node { code } } }
+                  }
+                  ... on DiscountAutomaticBxgy {
+                    title status startsAt endsAt
+                  }
+                }
+              }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }`,
+        { first, after }
+      );
+      return textResult(data);
+    },
+  },
+
+  // -------------------------------------------------------------------
+  // Gift cards
+  // -------------------------------------------------------------------
+  {
+    name: "list_gift_cards",
+    description:
+      "List gift cards issued by the store, including current balance, initial value, and the customer they're assigned to (if any). Use this to check gift card balances or outstanding liability.",
+    inputShape: {
+      ...pageArgs,
+      query: z
+        .string()
+        .optional()
+        .describe("Shopify search query syntax, e.g. 'enabled:true' or 'last_characters:AB12'."),
+    },
+    handler: async ({ first, after, query }) => {
+      const data = await shopifyGraphQL(
+        `query($first: Int!, $after: String, $query: String) {
+          giftCards(first: $first, after: $after, query: $query) {
+            edges {
+              cursor
+              node {
+                id
+                maskedCode
+                balance { amount currencyCode }
+                initialValue { amount currencyCode }
+                enabled
+                createdAt
+                expiresOn
+                customer { id displayName email }
+              }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }`,
+        { first, after, query }
+      );
+      return textResult(data);
+    },
+  },
+
+  // -------------------------------------------------------------------
+  // Analytics (ShopifyQL)
+  // -------------------------------------------------------------------
+  {
+    name: "run_analytics_query",
+    description:
+      "Run a ShopifyQL analytics query against the store's sales/analytics data, for questions like total sales over time, sales by product, or order counts by period. " +
+      "Use ShopifyQL syntax, e.g. \"FROM sales SHOW total_sales, net_sales, orders GROUP BY month SINCE -12m\" or \"FROM sales SHOW total_sales GROUP BY product_title SINCE -30d UNTIL today ORDER BY total_sales DESC LIMIT 10\". " +
+      "Useful datasets include 'sales' and 'orders'. If unsure of exact syntax, start with a simple query like \"FROM sales SHOW total_sales SINCE -30d\" and refine based on the result or any parseErrors returned.",
+    inputShape: {
+      query: z.string().describe("The ShopifyQL query string to execute."),
+    },
+    handler: async ({ query }) => {
+      const data = await shopifyGraphQL(
+        `query($query: String!) {
+          shopifyqlQuery(query: $query) {
+            tableData {
+              columns { name displayName dataType }
+              rows
+            }
+            parseErrors
+          }
+        }`,
+        { query }
+      );
+      return textResult(data);
+    },
+  },
 ];
