@@ -432,33 +432,4 @@ export const tools: ToolDef[] = [
       return textResult(data);
     },
   },
-
-  // -------------------------------------------------------------------
-  // Analytics (ShopifyQL)
-  // -------------------------------------------------------------------
-  {
-    name: "run_analytics_query",
-    description:
-      "Run a ShopifyQL analytics query against the store's sales/analytics data, for questions like total sales over time, sales by product, or order counts by period. " +
-      "Use ShopifyQL syntax, e.g. \"FROM sales SHOW total_sales, net_sales, orders GROUP BY month SINCE -12m\" or \"FROM sales SHOW total_sales GROUP BY product_title SINCE -30d UNTIL today ORDER BY total_sales DESC LIMIT 10\". " +
-      "Useful datasets include 'sales' and 'orders'. If unsure of exact syntax, start with a simple query like \"FROM sales SHOW total_sales SINCE -30d\" and refine based on the result or any parseErrors returned.",
-    inputShape: {
-      query: z.string().describe("The ShopifyQL query string to execute."),
-    },
-    handler: async ({ query }) => {
-      const data = await shopifyGraphQL(
-        `query($query: String!) {
-          shopifyqlQuery(query: $query) {
-            tableData {
-              columns { name displayName dataType }
-              rows
-            }
-            parseErrors
-          }
-        }`,
-        { query }
-      );
-      return textResult(data);
-    },
-  },
 ];

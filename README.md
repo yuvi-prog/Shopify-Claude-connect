@@ -16,7 +16,11 @@ Read-only tools covering:
 - **Collections** — `list_collections`
 - **Discounts** — `list_discounts` (codes and automatic discounts)
 - **Gift cards** — `list_gift_cards` (balances, initial value, assigned customer)
-- **Analytics** — `run_analytics_query` (ShopifyQL queries for sales/order trends)
+
+Analytics (ShopifyQL) was evaluated but deliberately left out: it requires
+Shopify's "Level 2 protected customer data" approval, a manual compliance
+review, not just a scope checkbox. Revisit if that approval is worth
+pursuing later.
 
 All tools are read-only (GraphQL `query` operations against the Shopify
 Admin API). No mutations (create/update/delete) are included.
@@ -60,8 +64,8 @@ those for a short-lived access token itself, refreshing automatically.
    - `read_customers`
    - `read_locations`
    - `read_discounts` (optional, for the `list_discounts` tool)
-   - `read_gift_cards` (optional, for the `list_gift_cards` tool)
-   - `read_analytics` (optional, for the `run_analytics_query` tool)
+   - `read_gift_cards` + `read_gift_card_transactions` (optional, for the
+     `list_gift_cards` tool)
 5. Uncheck **"Embed app in Shopify admin"** if shown — this app has no UI,
    it's API-only.
 6. Release the app version.
@@ -69,6 +73,19 @@ those for a short-lived access token itself, refreshing automatically.
    and **Secret** (click the eye icon to reveal it). These are what the
    server uses; copy them somewhere safe (not into chat with anyone,
    including an AI assistant).
+
+### Changing scopes later
+
+Adding or removing scopes on an existing app is **not** picked up just by
+releasing a new version. Shopify treats a scope change like a new consent
+request — even for a private, single-store app — so after releasing a
+version with different scopes, you must **re-run the app's install/consent
+link** for your store again (the same one used the first time you installed
+it; it's fine that it ends on a dead `example.com` redirect — the consent
+is recorded before that final redirect). Only after that will a freshly
+fetched token include the updated scopes. If Railway is caching an old
+token in memory, redeploy the service afterward to force it to fetch a new
+one.
 
 ## Local setup
 
