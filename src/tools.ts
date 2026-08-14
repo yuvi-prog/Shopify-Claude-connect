@@ -432,4 +432,85 @@ export const tools: ToolDef[] = [
       return textResult(data);
     },
   },
+
+  // -------------------------------------------------------------------
+  // Abandoned checkouts
+  // -------------------------------------------------------------------
+  {
+    name: "list_abandoned_checkouts",
+    description:
+      "List abandoned checkouts (carts where a customer started checkout but didn't complete the order), including recoverable value and customer info. Use this to answer questions about lost/at-risk revenue or cart abandonment.",
+    inputShape: {
+      ...pageArgs,
+    },
+    handler: async ({ first, after }) => {
+      const data = await shopifyGraphQL(
+        `query($first: Int!, $after: String) {
+          abandonedCheckouts(first: $first, after: $after, sortKey: CREATED_AT, reverse: true) {
+            edges {
+              cursor
+              node {
+                id
+                abandonedCheckoutUrl
+                createdAt
+                completedAt
+                totalPriceSet { shopMoney { amount currencyCode } }
+                customer { id displayName email }
+                lineItems(first: 10) { edges { node { title quantity } } }
+              }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }`,
+        { first, after }
+      );
+      return textResult(data);
+    },
+  },
+
+  // -------------------------------------------------------------------
+  // Top customers by spend (client-side ranking; Shopify has no native
+  // sort-by-amount-spent, so this samples up to 250 customers and ranks
+  // them locally — best-effort, not guaranteed exhaustive on stores with
+  // more than 250 customers).
+  // -------------------------------------------------------------------
+  {
+    name: "list_top_customers",
+    description:
+      "List the store's top customers ranked by total amount spent. Samples up to 250 customers (Shopify's max page size) and ranks them by amountSpent locally, since Shopify's API has no native 'sort by spend' — best-effort ranking, not guaranteed exhaustive on stores with more than 250 customers.",
+    inputShape: {
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .default(20)
+        .describe("Number of top customers to return, ranked by amount spent. Defaults to 20."),
+    },
+    handler: async ({ limit }) => {
+      const data = await shopifyGraphQL<{
+        customers: {
+          edges: { node: { id: string; displayName: string; email: string | null; numberOfOrders: string; amountSpent: { amount: string; currencyCode: string } } }[];
+        };
+      }>(
+        `query {
+          customers(first: 250) {
+            edges {
+              node {
+                id displayName email numberOfOrders
+                amountSpent { amount currencyCode }
+              }
+            }
+          }
+        }`
+      );
+
+      const ranked = data.customers.edges
+        .map((e) => e.node)
+        .sort((a, b) => parseFloat(b.amountSpent.amount) - parseFloat(a.amountSpent.amount))
+        .slice(0, limit);
+
+      return textResult({ topCustomers: ranked, sampledCount: data.customers.edges.length });
+    },
+  },
 ];

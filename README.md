@@ -16,6 +16,8 @@ Read-only tools covering:
 - **Collections** — `list_collections`
 - **Discounts** — `list_discounts` (codes and automatic discounts)
 - **Gift cards** — `list_gift_cards` (balances, initial value, assigned customer)
+- **Abandoned checkouts** — `list_abandoned_checkouts` (at-risk/lost revenue)
+- **Top customers** — `list_top_customers` (ranked by amount spent; samples up to 250 customers client-side since Shopify has no native sort-by-spend)
 
 Analytics (ShopifyQL) was evaluated but deliberately left out: it requires
 Shopify's "Level 2 protected customer data" approval, a manual compliance
